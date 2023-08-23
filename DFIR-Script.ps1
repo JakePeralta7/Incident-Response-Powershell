@@ -30,13 +30,25 @@ $OutputFolderPath = "$($CurrentPath)\DFIR-$($env:computername)-$($ExecutionTime)
 New-Item -Path $OutputFolderPath -ItemType Directory -Force | Out-Null
 Write-Host "Output directory created: $OutputFolderPath..."
 
-# Sub-folders
+# Creating Sub-folders
 $ConnectionsFolder = "$OutputFolderPath\Connections"
 New-Item -Path $ConnectionsFolder -ItemType Directory -Force | Out-Null
 $PersistenceFolder = "$OutputFolderPath\Persistence"
 New-Item -Path $PersistenceFolder -ItemType Directory -Force | Out-Null
 $UserFolder = "$OutputFolderPath\User Information"
 New-Item -Path $UserFolder -ItemType Directory -Force | Out-Null
+$ProcessFolder = "$OutputFolderPath\Process Information"
+New-Item -Path $ProcessFolder -ItemType Directory -Force | Out-Null
+$SecurityEvents = "$OutputFolderPath\Security Events"
+New-Item -Path $SecurityEvents -ItemType Directory -Force | Out-Null
+$EventViewer = "$OutputFolderPath\Event Viewer"
+New-Item -Path $EventViewer -ItemType Directory -Force | Out-Null
+$ApplicationFolder = "$OutputFolderPath\Applications"
+New-Item -Path $ApplicationFolder -ItemType Directory -Force | Out-Null
+$ScheduledTaskFolder = "$OutputFolderPath\Scheduled Tasks"
+New-Item -Path $ScheduledTaskFolder -ItemType Directory -Force | Out-Null
+$DeviceFolder = "$OutputFolderPath\Connected Devices"
+New-Item -Path $DeviceFolder -ItemType Directory -Force | Out-Null
 
 
 function Get-NetworkAdapters {
@@ -76,16 +88,12 @@ function Get-ActiveUsers {
 
 function Get-LocalUsers {
     Write-Host "Collecting Local users..."
-    $UserFolder = "$OutputFolderPath\User Information"
     $ActiveUserOutput = "$UserFolder\LocalUsers.txt"
     Get-LocalUser | Format-Table | Out-File -Force -FilePath $ActiveUserOutput
 }
 
 function Get-ActiveProcesses {
     Write-Host "Collecting Active Processes..."
-    $ProcessFolder = "$OutputFolderPath\Process Information"
-    New-Item -Path $ProcessFolder -ItemType Directory -Force | Out-Null
-    $UniqueProcessHashOutput = "$ProcessFolder\UniqueProcessHash.csv"
     $ProcessListOutput = "$ProcessFolder\ProcessList.csv"
 
     $processes_list = @()
@@ -111,8 +119,6 @@ function Get-ActiveProcesses {
 
 function Get-SecurityEventCount {
     Write-Host "Collecting stats Security Events last 48 hours..."
-    $SecurityEvents = "$OutputFolderPath\SecurityEvents"
-    mkdir -Force $SecurityEvents | Out-Null
     $ProcessOutput = "$SecurityEvents\EventCount.txt"
     $SecurityEvents = Get-EventLog -LogName security -After (Get-Date).AddDays(-2)
     $SecurityEvents | Group-Object -Property EventID -NoElement | Sort-Object -Property Count -Descending | Out-File -Force -FilePath $ProcessOutput
@@ -123,13 +129,11 @@ function Get-SecurityEvents {
     $SecurityEvents = "$OutputFolderPath\SecurityEvents"
     mkdir -Force $SecurityEvents | Out-Null
     $ProcessOutput = "$SecurityEvents\SecurityEvents.txt"
-    get-eventlog security -After (Get-Date).AddDays(-2) | Format-List * | Out-File -Force -FilePath $ProcessOutput
+    Get-EventLog Security -After (Get-Date).AddDays(-2) | Format-List * | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-EVTXFiles {
     Write-Host "Collecting Important EVTX Files..."
-    $EventViewer = "$OutputFolderPath\Event Viewer"
-    mkdir -Force $EventViewer | Out-Null
     $evtxPath = "C:\Windows\System32\winevt\Logs"
     $channels = @(
         "Application",
@@ -147,42 +151,36 @@ function Get-EVTXFiles {
 
 function Get-OfficeConnections {
     Write-Host "Collecting connections made from office applciations..."
-    $ConnectionFolder = "$OutputFolderPath\Connections"
     $OfficeConnection = "$ConnectionFolder\ConnectionsMadeByOffice.txt"
     Get-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Internet\Server Cache* -erroraction 'silentlycontinue' | Out-File -Force -FilePath $OfficeConnection 
 }
 
 function Get-NetworkShares {
     Write-Host "Collecting Active Network Shares..."
-    $ConnectionFolder = "$OutputFolderPath\Connections"
     $ProcessOutput = "$ConnectionFolder\NetworkShares.txt"
     Get-ChildItem -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2\ | Format-Table | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-SMBShares {
     Write-Host "Collecting SMB Shares..."
-    $ConnectionFolder = "$OutputFolderPath\Connections"
     $ProcessOutput = "$ConnectionFolder\SMBShares.txt"
     Get-SmbShare | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-RDPSessions {
     Write-Host "Collecting RDS Sessions..."
-    $ConnectionFolder = "$OutputFolderPath\Connections"
     $ProcessOutput = "$ConnectionFolder\RDPSessions.txt"
     qwinsta /server:localhost | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-RemotelyOpenedFiles {
     Write-Host "Collecting Remotly Opened Files..."
-    $ConnectionFolder = "$OutputFolderPath\Connections"
     $ProcessOutput = "$ConnectionFolder\RemotelyOpenedFiles.txt"
     openfiles | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-DNSCache {
     Write-Host "Collecting DNS Cache..."
-    $ConnectionFolder = "$OutputFolderPath\Connections"
     $ProcessOutput = "$ConnectionFolder\DNSCache.txt"
     Get-DnsClientCache | Format-List | Out-File -Force -FilePath $ProcessOutput
 }
@@ -190,13 +188,11 @@ function Get-DNSCache {
 function Get-PowershellHistory {
     Write-Host "Collecting Powershell History..."
     $PowershellHistoryOutput = "$OutputFolderPath\PowershellHistory.txt"
-    history | Out-File -Force -FilePath $PowershellHistoryOutput
+    Get-History | Out-File -Force -FilePath $PowershellHistoryOutput
 }
 
 function Get-RecentlyInstalledSoftwareEventLogs {
     Write-Host "Collecting Recently Installed Software EventLogs..."
-    $ApplicationFolder = "$OutputFolderPath\Applications"
-    mkdir -Force $ApplicationFolder | Out-Null
     $ProcessOutput = "$ApplicationFolder\RecentlyInstalledSoftwareEventLogs.txt"
     Get-WinEvent -ProviderName msiinstaller | Where-Object id -eq 1033 | Select-Object timecreated, message | Format-List * | Out-File -Force -FilePath $ProcessOutput
 }
@@ -210,23 +206,18 @@ function Get-RunningServices {
 
 function Get-ScheduledTasks {
     Write-Host "Collecting Scheduled Tasks..."
-    $ScheduledTaskFolder = "$OutputFolderPath\ScheduledTask"
-    mkdir -Force $ScheduledTaskFolder| Out-Null
     $ProcessOutput = "$ScheduledTaskFolder\ScheduledTasksList.txt"
     Get-ScheduledTask | Where-Object {$_.State -ne "Disabled"} | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-ScheduledTasksRunInfo {
     Write-Host "Collecting Scheduled Tasks Run Info..."
-    $ScheduledTaskFolder = "$OutputFolderPath\ScheduledTask"
     $ProcessOutput = "$ScheduledTaskFolder\ScheduledTasksListRunInfo.txt"
     Get-ScheduledTask | Where-Object {$_.State -ne "Disabled"} | Get-ScheduledTaskInfo | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-ConnectedDevices {
     Write-Host "Collecting Information about Connected Devices..."
-    $DeviceFolder = "$OutputFolderPath\ConnectedDevices"
-    New-Item -Path $DeviceFolder -ItemType Directory -Force | Out-Null
     $ConnectedDevicesOutput = "$DeviceFolder\ConnectedDevices.csv"
 
     Get-PnpDevice | Export-Csv -NoTypeInformation -Path $ConnectedDevicesOutput
