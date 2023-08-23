@@ -30,10 +30,19 @@ $OutputFolderPath = "$($CurrentPath)\DFIR-$($env:computername)-$($ExecutionTime)
 New-Item -Path $OutputFolderPath -ItemType Directory -Force | Out-Null
 Write-Host "Output directory created: $OutputFolderPath..."
 
+# Sub-folders
+$ConnectionsFolder = "$OutputFolderPath\Connections"
+New-Item -Path $ConnectionsFolder -ItemType Directory -Force | Out-Null
+$PersistenceFolder = "$OutputFolderPath\Persistence"
+New-Item -Path $PersistenceFolder -ItemType Directory -Force | Out-Null
+$UserFolder = "$OutputFolderPath\User Information"
+New-Item -Path $UserFolder -ItemType Directory -Force | Out-Null
+
+
 function Get-NetworkAdapters {
     Write-Host "Collecting information about local network adapters..."
-    $NetworkAdaptersOutput = "$OutputFolderPath\NetworkAdapters.csv"
-    Get-NetIPAddress | Select-Object InterfaceIndex, InterfaceAlias, AddressFamily, IPAddress, AddressState | ConvertTo-Csv -NoTypeInformation | Out-File -Force -FilePath $NetworkAdaptersOutput
+    $NetworkAdaptersOutput = "$OutputFolderPath\NetworkAdapters.json"
+    Get-NetIPAddress | Select-Object InterfaceIndex, InterfaceAlias, AddressFamily, IPAddress, AddressState | ConvertTo-Json | Out-File -Force -FilePath $NetworkAdaptersOutput
 }
 function Get-ShadowCopies {
     Write-Host "Collecting Shadow Copies..."
@@ -43,45 +52,38 @@ function Get-ShadowCopies {
 
 function Get-OpenConnections {
     Write-Host "Collecting Open Connections..."
-    $ConnectionsFolder = "$OutputFolderPath\Connections"
-	New-Item -Path $ConnectionsFolder -ItemType Directory -Force | Out-Null
     $OpenConnectionsOutput = "$ConnectionsFolder\OpenConnections.txt"
     Get-NetTCPConnection -State Established | Out-File -Force -FilePath $OpenConnectionsOutput
 }
 
 function Get-AutoRunInfo {
     Write-Host "Collecting AutoRun info..."
-    $PersistenceFolder = "$OutputFolderPath\Persistence"
-	New-Item -Path $PersistenceFolder -ItemType Directory -Force | Out-Null
     $RegKeyOutput = "$AutoRunFolder\AutoRunInfo.txt"
     Get-CimInstance Win32_StartupCommand | Select-Object Name, command, Location, User | Format-List | Out-File -Force -FilePath $RegKeyOutput
 }
 
 function Get-InstalledDrivers {
     Write-Host "Collecting Installed Drivers..."
-    $PersistenceFolder = "$OutputFolderPath\Persistence"
     $RegKeyOutput = "$PersistenceFolder\InstalledDrivers.txt"
     driverquery | Out-File -Force -FilePath $RegKeyOutput
 }
 
 function Get-ActiveUsers {
     Write-Host "Collecting Active users..."
-    $UserFolder = "$OutputFolderPath\UserInformation"
-	New-Item -Path $UserFolder -ItemType Directory -Force | Out-Null
     $ActiveUserOutput = "$UserFolder\ActiveUsers.txt"
     query user /server:$server | Out-File -Force -FilePath $ActiveUserOutput
 }
 
 function Get-LocalUsers {
     Write-Host "Collecting Local users..."
-    $UserFolder = "$OutputFolderPath\UserInformation"
+    $UserFolder = "$OutputFolderPath\User Information"
     $ActiveUserOutput = "$UserFolder\LocalUsers.txt"
     Get-LocalUser | Format-Table | Out-File -Force -FilePath $ActiveUserOutput
 }
 
 function Get-ActiveProcesses {
     Write-Host "Collecting Active Processes..."
-    $ProcessFolder = "$OutputFolderPath\ProcessInformation"
+    $ProcessFolder = "$OutputFolderPath\Process Information"
     New-Item -Path $ProcessFolder -ItemType Directory -Force | Out-Null
     $UniqueProcessHashOutput = "$ProcessFolder\UniqueProcessHash.csv"
     $ProcessListOutput = "$ProcessFolder\ProcessList.csv"
@@ -196,14 +198,14 @@ function Get-RecentlyInstalledSoftwareEventLogs {
     $ApplicationFolder = "$OutputFolderPath\Applications"
     mkdir -Force $ApplicationFolder | Out-Null
     $ProcessOutput = "$ApplicationFolder\RecentlyInstalledSoftwareEventLogs.txt"
-    Get-WinEvent -ProviderName msiinstaller | where id -eq 1033 | select timecreated,message | FL *| Out-File -Force -FilePath $ProcessOutput
+    Get-WinEvent -ProviderName msiinstaller | Where-Object id -eq 1033 | Select-Object timecreated, message | Format-List * | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-RunningServices {
     Write-Host "Collecting Running Services..."
     $ApplicationFolder = "$OutputFolderPath\Applications"
     $ProcessOutput = "$ApplicationFolder\RecentlyInstalledSoftwareEventLogs.txt"
-    Get-Service | Where-Object {$_.Status -eq "Running"} | format-list | Out-File -Force -FilePath $ProcessOutput
+    Get-Service | Where-Object {$_.Status -eq "Running"} | Format-List | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-ScheduledTasks {
@@ -211,7 +213,7 @@ function Get-ScheduledTasks {
     $ScheduledTaskFolder = "$OutputFolderPath\ScheduledTask"
     mkdir -Force $ScheduledTaskFolder| Out-Null
     $ProcessOutput = "$ScheduledTaskFolder\ScheduledTasksList.txt"
-    Get-ScheduledTask | Where-Object {$_.State -ne "Disabled"} | Format-List | Out-File -Force -FilePath $ProcessOutput
+    Get-ScheduledTask | Where-Object {$_.State -ne "Disabled"} | Out-File -Force -FilePath $ProcessOutput
 }
 
 function Get-ScheduledTasksRunInfo {
@@ -234,6 +236,7 @@ function Get-ConnectedDevices {
 function Zip-Results {
     Write-Host "Write results to $OutputFolderPath.zip..."
     Compress-Archive -Force -LiteralPath $OutputFolderPath -DestinationPath "$OutputFolderPath.zip"
+    Remove-Item -Path $OutputFolderPath -Recurse
 }
 
 #Run all functions that do not require admin priviliges
